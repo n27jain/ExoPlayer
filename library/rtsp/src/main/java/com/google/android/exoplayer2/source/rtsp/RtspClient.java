@@ -299,7 +299,17 @@ final class RtspClient implements Closeable {
       playbackEventListener.onRtspSetupCompleted();
       return;
     }
+    //TODO: Remove this
     messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
+    //RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
+    //customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
+  }
+  private void customSetup(RtspSetupResponse response) {
+    checkState(rtspState != RTSP_STATE_UNINITIALIZED);
+    Log.i(TAG, "onSetupResponseReceived");
+    rtspState = RTSP_STATE_READY;
+    sessionId = response.sessionHeader.sessionId;
+    continueSetupRtspTrack();
   }
 
   /** Returns a {@link Socket} that is connected to the {@code uri}. */
@@ -361,6 +371,7 @@ final class RtspClient implements Closeable {
     private @MonotonicNonNull RtspRequest lastRequest;
 
     public void sendSetupRequest(Uri trackUri, String transport, @Nullable String sessionId) {
+      //TODO: Remove this
       rtspState = RTSP_STATE_INIT;
       sendRequest(
           getRequestWithCommonHeaders(
@@ -472,8 +483,6 @@ final class RtspClient implements Closeable {
     }
 
     private void handleRtspMessage(List<String> message) {
-      maybeLogMessage(message);
-
       if (RtspMessageUtil.isRtspResponse(message)) {
         handleRtspResponse(message);
       } else {
@@ -555,11 +564,9 @@ final class RtspClient implements Closeable {
               throw ParserException.createForMalformedManifest(
                   "Missing mandatory session or transport header", /* cause= */ null);
             }
+            RtspSessionHeader sessionHeader = RtspMessageUtil.parseSessionHeader(sessionHeaderString);
+            onSetupResponseReceived(new RtspSetupResponse(response.status, sessionHeader, transportHeaderString));
 
-            RtspSessionHeader sessionHeader =
-                RtspMessageUtil.parseSessionHeader(sessionHeaderString);
-            onSetupResponseReceived(
-                new RtspSetupResponse(response.status, sessionHeader, transportHeaderString));
             break;
 
           case METHOD_PLAY:

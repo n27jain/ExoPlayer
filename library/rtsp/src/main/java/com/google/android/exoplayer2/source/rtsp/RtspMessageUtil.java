@@ -34,6 +34,7 @@ import static com.google.common.base.Strings.nullToEmpty;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 
 import android.net.Uri;
+import android.util.Log;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
@@ -404,12 +405,14 @@ import java.util.regex.Pattern;
    * @throws ParserException When the input header value does not follow the Session header format.
    */
   public static RtspSessionHeader parseSessionHeader(String headerValue) throws ParserException {
+    //TODO: Remove this
     Matcher matcher = SESSION_HEADER_PATTERN.matcher(headerValue);
     if (!matcher.matches()) {
       throw ParserException.createForMalformedManifest(headerValue, /* cause= */ null);
     }
 
     String sessionId = checkNotNull(matcher.group(1));
+    Log.i("SESSION FINDING: ", "Session ID is : " + sessionId);
     // Optional parameter timeout.
     long timeoutMs = DEFAULT_RTSP_TIMEOUT_MS;
     @Nullable String timeoutString;
@@ -422,6 +425,7 @@ import java.util.regex.Pattern;
     }
 
     return new RtspSessionHeader(sessionId, timeoutMs);
+
   }
 
   /**
