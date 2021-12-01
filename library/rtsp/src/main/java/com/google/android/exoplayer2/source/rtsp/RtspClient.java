@@ -137,7 +137,6 @@ final class RtspClient implements Closeable {
   private RtspMessageChannel messageChannel;
   @Nullable private RtspAuthUserInfo rtspAuthUserInfo;
   @Nullable private String sessionId;
-  @Nullable private KeepAliveMonitor keepAliveMonitor;
   @Nullable private RtspAuthenticationInfo rtspAuthenticationInfo;
   @RtspState private int rtspState;
   private boolean hasUpdatedTimelineAndTracks;
@@ -300,10 +299,11 @@ final class RtspClient implements Closeable {
       return;
     }
     //TODO: Remove this
-    messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
-    //RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
-    //customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
+    //messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
+    RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
+    customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
   }
+
   private void customSetup(RtspSetupResponse response) {
     checkState(rtspState != RTSP_STATE_UNINITIALIZED);
     Log.i(TAG, "onSetupResponseReceived");
@@ -603,15 +603,10 @@ final class RtspClient implements Closeable {
     }
 
     private void onPlayResponseReceived(RtspPlayResponse response) {
-      Log.i(TAG, "onPlayResponseReceived");
+      Log.i(TAG, "onPlayResponseReceived " + " checkState = " + rtspState);
       checkState(rtspState == RTSP_STATE_READY);
 
       rtspState = RTSP_STATE_PLAYING;
-      if (keepAliveMonitor == null) {
-        keepAliveMonitor = new KeepAliveMonitor(DEFAULT_RTSP_KEEP_ALIVE_INTERVAL_MS);
-        keepAliveMonitor.start();
-      }
-
       playbackEventListener.onPlaybackStarted(
           Util.msToUs(response.sessionTiming.startTimeMs), response.trackTimingList);
       pendingSeekPositionUs = C.TIME_UNSET;
@@ -619,38 +614,4 @@ final class RtspClient implements Closeable {
 
   }
 
-  /** Sends periodic OPTIONS requests to keep RTSP connection alive. */
-  private final class KeepAliveMonitor implements Runnable, Closeable {
-
-    //private final Handler keepAliveHandler;
-    private final long intervalMs;
-    private boolean isStarted;
-    private String TAG = Constants.TAG + "RtspClient: KeepAliveMonitor";
-    /**
-     * Creates a new instance.
-     *
-     * <p>Constructor must be invoked on the playback thread.
-     *
-     * @param intervalMs The time between consecutive RTSP keep-alive requests, in milliseconds.
-     */
-    public KeepAliveMonitor(long intervalMs) {
-      Log.i(this.TAG, "contructor");
-      this.intervalMs = intervalMs;
-      //keepAliveHandler = Util.createHandlerForCurrentLooper();
-    }
-
-    @Override
-    public void close() throws IOException {
-
-    }
-
-    @Override
-    public void run() {
-
-    }
-
-    public void start() {
-
-    }
-  }
 }
