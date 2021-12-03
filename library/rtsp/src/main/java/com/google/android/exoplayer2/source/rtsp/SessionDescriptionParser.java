@@ -72,6 +72,25 @@ import java.util.regex.Pattern;
    *     mandatory SDP fields {@link SessionDescription#timing}, {@link SessionDescription#origin}
    *     and {@link SessionDescription#sessionName} are not set.
    */
+
+  public static SessionDescription  rtpCreateDescription()  throws ParserException {
+    SessionDescription.Builder sessionDescriptionBuilder = new SessionDescription.Builder();
+    @Nullable MediaDescription.Builder mediaDescriptionBuilder = null;
+
+      try {
+        String VERSION_TYPE = "0"; // not needed
+        String MEDIA_TYPE = "video 50008 RTP/AVP 96";
+        String CONNECTION_TYPE = "IN IP4 10.2.0.19";
+        sessionDescriptionBuilder.setConnection(CONNECTION_TYPE);
+        String RTPMAP = "96 H264/90000";
+        addMediaDescriptionToSession(sessionDescriptionBuilder, mediaDescriptionBuilder);
+
+
+      } catch (IllegalArgumentException | IllegalStateException e) {
+        throw ParserException.createForMalformedManifest(/* message= */ null, e);
+      }
+      return sessionDescriptionBuilder.build();
+  }
   public static SessionDescription customCreateDescription() throws ParserException {
     //TODO: hardcode the required params to run the steam here
       SessionDescription.Builder sessionDescriptionBuilder = new SessionDescription.Builder();
@@ -115,6 +134,12 @@ import java.util.regex.Pattern;
 
       //Media
       String MEDIA_TYPE = "video 0 RTP/AVP 97";
+
+
+      //TODO: SA Stream
+      MEDIA_TYPE = "video 50008 RTP/AVP 96";
+      //CONNECTION_TYPE ="IN IP4 10.2.0.19"; -> found to be not needed in Bunny video. Maybe we need it here
+
 
       try {
         //ORIGIN_TYPE
