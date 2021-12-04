@@ -15,8 +15,9 @@ import com.google.android.exoplayer2.ui.PlayerView;
 
 
 public class MainActivity extends AppCompatActivity {
-  String url = "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov";
+  //String url = "rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov";
   //String url ="rtsp://demo:demo@ipvmdemo.dyndns.org:5541/onvif-media/media.amp?profile=profile_1_h264&sessiontimeout=60&streamtype=unicast"; // This is a LIVE feed!
+  String url = "rtsp://10.2.0.19:50008";
   String TAG =  Constants.TAG + " MainActivity.java";
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -30,7 +31,11 @@ public class MainActivity extends AppCompatActivity {
     ExoPlayer player = new ExoPlayer.Builder(this).build();
     Log.i(TAG,"Finished creation of new Exoplayer");
 
+    Log.i(TAG,"Creating MediaItem from url : " + url);
+
     MediaItem item = MediaItem.fromUri(Uri.parse(url));
+    //MediaItem item = new MediaItem.Builder().setUri(Uri.parse("udp://10.2.0.19:50008")).build();
+    Log.i(TAG,"MediaItem is  " + item);
     Log.i(TAG,"START : Create a new MediaSource using RtspMediaSource.Factory()");
     MediaSource mediaSource = new RtspMediaSource.Factory().createMediaSource(item); // UDPdatsource Directory
     Log.i(TAG,"Finished creation of mediaSource");

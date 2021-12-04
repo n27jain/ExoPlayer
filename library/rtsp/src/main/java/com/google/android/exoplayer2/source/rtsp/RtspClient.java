@@ -194,25 +194,34 @@ final class RtspClient implements Closeable {
     try {
       messageChannel.open(getSocket(uri));
     } catch (IOException e) {
+      Log.e(TAG, "EXCEPTION FOUND: " + e.toString());
+      e.printStackTrace();
       Util.closeQuietly(messageChannel);
       throw e;
     }
     //Skip OptionsRequest
     //Skip DescribeRequest
     // I made this param so that we can set a watch point for the 'test' var
-    this.test = new RtspDescribeResponse( 200, SessionDescriptionParser.customCreateDescription() );
+    Log.i(TAG, "creating hardcoded RtspDescribe");
+    this.test = new RtspDescribeResponse( 200, SessionDescriptionParser.rtpCreateDescription() );
+    Log.i(TAG, "describe value is: " + this.test);
     customDescribe(this.test);
   }
 
   private void customDescribe(RtspDescribeResponse response) {
-    Log.i(TAG, "customDescribe");
+    Log.i(TAG, "customDescribe()");
     RtspSessionTiming sessionTiming = RtspSessionTiming.DEFAULT;
     @Nullable
     String sessionRangeAttributeString =
         response.sessionDescription.attributes.get(SessionDescription.ATTR_RANGE);
+
+    Log.i(TAG, "attributes found = " + sessionRangeAttributeString );
+
     if (sessionRangeAttributeString != null) {
       try {
+
         sessionTiming = RtspSessionTiming.parseTiming(sessionRangeAttributeString);
+        Log.i(TAG, "sessionTiming = " + sessionTiming );
       } catch (ParserException e) {
         sessionInfoListener.onSessionTimelineRequestFailed("SDP format error.", /* cause= */ e);
         return;
@@ -220,7 +229,9 @@ final class RtspClient implements Closeable {
     }
 
     ImmutableList<RtspMediaTrack> tracks = buildTrackList(response.sessionDescription, uri);
+    Log.i(TAG, "response.sessionDescription = " + response.sessionDescription );
     if (tracks.isEmpty()) {
+      Log.i(TAG, "Not tracks found" );
       sessionInfoListener.onSessionTimelineRequestFailed("No playable track.", /* cause= */ null);
       return;
     }
@@ -256,8 +267,8 @@ final class RtspClient implements Closeable {
    * @param offsetMs The playback offset in milliseconds, with respect to the stream start position.
    */
   public void startPlayback(long offsetMs) {
-    Log.i(TAG,"startPlayback()" );
-    messageSender.sendPlayRequest(uri, offsetMs, checkNotNull(sessionId));
+    Log.i(TAG,"startPlayback() but ERROR if video has not already started" );
+    //messageSender.sendPlayRequest(uri, offsetMs, checkNotNull(sessionId));
   }
 
 
@@ -299,6 +310,7 @@ final class RtspClient implements Closeable {
       return;
     }
     //TODO: Remove this
+    Log.i(TAG, " continueSetupRtspTrack(). This is should not happen. ");
     //messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
     RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
     customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
@@ -314,9 +326,13 @@ final class RtspClient implements Closeable {
 
   /** Returns a {@link Socket} that is connected to the {@code uri}. */
   private static Socket getSocket(Uri uri) throws IOException {
+
+    Log.i("RtspClient DEBUG: ", "getSocket()");
+    Log.i("RtspClient DEBUG: ", "is getHost null? " + uri.getHost());
+
     checkArgument(uri.getHost() != null);
     int rtspPort = uri.getPort() > 0 ? uri.getPort() : DEFAULT_RTSP_PORT;
-    return SocketFactory.getDefault().createSocket(checkNotNull(uri.getHost()), rtspPort);
+    return new Socket("10.2.0.19",50008);
   }
 
   private void dispatchRtspError(Throwable error) {

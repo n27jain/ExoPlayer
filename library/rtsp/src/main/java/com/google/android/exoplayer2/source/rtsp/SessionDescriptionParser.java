@@ -73,23 +73,25 @@ import java.util.regex.Pattern;
    *     and {@link SessionDescription#sessionName} are not set.
    */
 
-  public static SessionDescription  rtpCreateDescription()  throws ParserException {
+  public static SessionDescription  rtpCreateDescription() throws ParserException {
     SessionDescription.Builder sessionDescriptionBuilder = new SessionDescription.Builder();
     @Nullable MediaDescription.Builder mediaDescriptionBuilder = null;
-
-      try {
-        String VERSION_TYPE = "0"; // not needed
-        String MEDIA_TYPE = "video 50008 RTP/AVP 96";
-        String CONNECTION_TYPE = "IN IP4 10.2.0.19";
-        sessionDescriptionBuilder.setConnection(CONNECTION_TYPE);
-        String RTPMAP = "96 H264/90000";
-        addMediaDescriptionToSession(sessionDescriptionBuilder, mediaDescriptionBuilder);
-
-
-      } catch (IllegalArgumentException | IllegalStateException e) {
-        throw ParserException.createForMalformedManifest(/* message= */ null, e);
-      }
+    try {
+      //String VERSION_TYPE = "0"; // not needed
+      String MEDIA_TYPE = "video 50008 RTP/AVP 96";
+      String CONNECTION_TYPE = "IN IP4 10.2.0.19";
+      String RTPMAP = "96 H264/90000";
+      mediaDescriptionBuilder = parseMediaDescriptionLine(MEDIA_TYPE);
+      mediaDescriptionBuilder.setConnection(CONNECTION_TYPE);
+      mediaDescriptionBuilder.addAttribute("rtpmap", RTPMAP);
+      //sessionDescriptionBuilder.setConnection(CONNECTION_TYPE);
+      //addMediaDescriptionToSession(sessionDescriptionBuilder, mediaDescriptionBuilder);
+      addMediaDescriptionToSession(sessionDescriptionBuilder, mediaDescriptionBuilder);
+      //addMediaDescriptionToSession(sessionDescriptionBuilder, mediaDescriptionBuilder);
       return sessionDescriptionBuilder.build();
+    } catch (IllegalArgumentException | IllegalStateException e) {
+      throw ParserException.createForMalformedManifest(/* message= */ null, e);
+    }
   }
   public static SessionDescription customCreateDescription() throws ParserException {
     //TODO: hardcode the required params to run the steam here
