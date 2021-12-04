@@ -138,7 +138,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
    *
    * @param socket A connected {@link Socket}.
    */
-  public void open(Socket socket) throws IOException {
+  public void  open(Socket socket) throws IOException {
     Log.i(TAG, "open() ");
     this.socket = socket;
     Log.i(TAG, "Socket " + this.socket );

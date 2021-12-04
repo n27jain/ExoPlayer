@@ -332,7 +332,7 @@ final class RtspClient implements Closeable {
 
     checkArgument(uri.getHost() != null);
     int rtspPort = uri.getPort() > 0 ? uri.getPort() : DEFAULT_RTSP_PORT;
-    return new Socket("10.2.0.19",50008);
+    return new Socket("127.0. 0.1",50008);
   }
 
   private void dispatchRtspError(Throwable error) {
