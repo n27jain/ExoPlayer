@@ -730,35 +730,34 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Nullable private String transport;
 
     /** Creates a new instance. */
-    public RtpLoadInfo(
-        RtspMediaTrack mediaTrack, int trackId, RtpDataChannel.Factory rtpDataChannelFactory) {
-      Log.i(TAG," RtpLoadInfo() Constructor");
+    public RtpLoadInfo(RtspMediaTrack mediaTrack, int trackId, RtpDataChannel.Factory rtpDataChannelFactory) {
+          Log.i(TAG," RtpLoadInfo() Constructor");
 
-      this.mediaTrack = mediaTrack;
+          this.mediaTrack = mediaTrack;
 
-      // This listener runs on the playback thread, posted by the Loader thread.
-      RtpDataLoadable.EventListener transportEventListener =
-          (transport, rtpDataChannel) -> {
-            RtpLoadInfo.this.transport = transport;
+          // This listener runs on the playback thread, posted by the Loader thread.
+          RtpDataLoadable.EventListener transportEventListener =
+              (transport, rtpDataChannel) -> {
+                RtpLoadInfo.this.transport = transport;
 
-            @Nullable
-            RtspMessageChannel.InterleavedBinaryDataListener interleavedBinaryDataListener =
-                rtpDataChannel.getInterleavedBinaryDataListener();
-            if (interleavedBinaryDataListener != null) {
-              rtspClient.registerInterleavedDataChannel(
-                  rtpDataChannel.getLocalPort(), interleavedBinaryDataListener);
-              isUsingRtpTcp = true;
-            }
-            maybeSetupTracks();
-          };
+                @Nullable
+                RtspMessageChannel.InterleavedBinaryDataListener interleavedBinaryDataListener =
+                    rtpDataChannel.getInterleavedBinaryDataListener();
+                if (interleavedBinaryDataListener != null) {
+                  rtspClient.registerInterleavedDataChannel(
+                      rtpDataChannel.getLocalPort(), interleavedBinaryDataListener);
+                  isUsingRtpTcp = true;
+                }
+                maybeSetupTracks();
+              };
 
-      this.loadable =
-          new RtpDataLoadable(
-              trackId,
-              mediaTrack,
-              /* eventListener= */ transportEventListener,
-              /* output= */ internalListener,
-              rtpDataChannelFactory);
+          this.loadable =
+              new RtpDataLoadable(
+                  trackId,
+                  mediaTrack,
+                  /* eventListener= */ transportEventListener,
+                  /* output= */ internalListener,
+                  rtpDataChannelFactory);
     }
 
     /**

@@ -299,9 +299,9 @@ final class RtspClient implements Closeable {
       return;
     }
     //TODO: Remove this
-    //messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
-    RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
-    customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
+    messageSender.sendSetupRequest(loadInfo.getTrackUri(), loadInfo.getTransport(), sessionId);
+    //RtspSessionHeader sessionHeader = new RtspSessionHeader("1988052153", 60000);
+    //customSetup(new RtspSetupResponse(200, sessionHeader, "RTP/AVP;unicast;client_port=37620-37621;source=34.227.104.115;server_port=7144-7145;ssrc=456994E4"));
   }
 
   private void customSetup(RtspSetupResponse response) {
