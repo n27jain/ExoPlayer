@@ -29,7 +29,8 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
 
     //make sure you are using even number port for RTP comm.
-    Uri url = Uri.parse("rtp://10.2.0.19:50008");
+    Uri url = Uri.parse("rtp://10.0.2.16:50008");
+    //url = Uri.parse()
     public static String TAG = "ExoSample";
     MediaItem item = null;
     RtspMediaSource mediaSource = null;
