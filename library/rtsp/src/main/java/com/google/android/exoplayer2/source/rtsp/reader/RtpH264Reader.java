@@ -19,13 +19,13 @@ import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 import static com.google.android.exoplayer2.util.Assertions.checkStateNotNull;
 import static com.google.android.exoplayer2.util.Util.castNonNull;
 
+import android.util.Log;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ParserException;
 import com.google.android.exoplayer2.extractor.ExtractorOutput;
 import com.google.android.exoplayer2.extractor.TrackOutput;
 import com.google.android.exoplayer2.source.rtsp.RtpPacket;
 import com.google.android.exoplayer2.source.rtsp.RtpPayloadFormat;
-import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.NalUnitUtil;
 import com.google.android.exoplayer2.util.ParsableByteArray;
 import com.google.android.exoplayer2.util.Util;
@@ -69,6 +69,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   /** Creates an instance. */
   public RtpH264Reader(RtpPayloadFormat payloadFormat) {
+    Log.i(TAG," Entered Contructor. payloadFormat : " + payloadFormat);
     this.payloadFormat = payloadFormat;
     fuScratchBuffer = new ParsableByteArray();
     firstReceivedTimestamp = C.TIME_UNSET;
@@ -77,22 +78,27 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   @Override
   public void createTracks(ExtractorOutput extractorOutput, int trackId) {
+    Log.i(TAG," createTracks();  " + " extractorOutput: " + extractorOutput + " trackID: " + trackId);
     trackOutput = extractorOutput.track(trackId, C.TRACK_TYPE_VIDEO);
 
     castNonNull(trackOutput).format(payloadFormat.format);
   }
 
   @Override
-  public void onReceivingFirstPacket(long timestamp, int sequenceNumber) {}
+  public void onReceivingFirstPacket(long timestamp, int sequenceNumber) {
+    Log.i(TAG," onReceivingFirstPacket(). Empty method");
+  }
 
   @Override
   public void consume(ParsableByteArray data, long timestamp, int sequenceNumber, boolean rtpMarker)
       throws ParserException {
 
+    Log.i(TAG," consume(). Data: " + data + " timestamp: " + timestamp + " sequenceNumber: " + sequenceNumber);
     int rtpH264PacketMode;
     try {
       // RFC6184 Section 5.6, 5.7 and 5.8.
       rtpH264PacketMode = data.getData()[0] & 0x1F;
+      Log.i(TAG," rtpH264PacketMode: " + rtpH264PacketMode);
     } catch (IndexOutOfBoundsException e) {
       throw ParserException.createForMalformedManifest(/* message= */ null, e);
     }
@@ -130,6 +136,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   @Override
   public void seek(long nextRtpTimestamp, long timeUs) {
+    Log.i(TAG," seek(); nextRtpTimestamp: " + nextRtpTimestamp + " timeUs: " + timeUs);
     firstReceivedTimestamp = nextRtpTimestamp;
     fragmentedSampleSizeBytes = 0;
     startTimeOffsetUs = timeUs;
@@ -157,7 +164,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     //    |                               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     //    |                               :...OPTIONAL RTP padding        |
     //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
+    Log.i(TAG," processSingleNalUnitPacket()");
     int numBytesInData = data.bytesLeft();
     fragmentedSampleSizeBytes += writeStartCode();
     trackOutput.sampleData(data, numBytesInData);
@@ -196,6 +203,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
     // Skips STAP-A NAL HDR that has the NAL format |F|NRI|Type|, but with Type replaced by the
     // STAP-A type id (RTP_PACKET_TYPE_STAP_A).
+    Log.i(TAG," processSingleTimeAggregationPacket()");
     data.readUnsignedByte();
 
     // Gets all NAL units until the remaining bytes are only enough to store an RTP padding.
@@ -242,6 +250,8 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     //  +---------------+---------------+
     //  Indicator: Upper 3 bits are the same as NALU header, Type = 28 (FU-A type).
     //  Header: Start/End/Reserved/Type. Type is same as NALU type.
+
+    Log.i(TAG," processFragmentationUnitPacket()");
     int fuIndicator = data.getData()[0];
     int fuHeader = data.getData()[1];
     int nalHeader = (fuIndicator & 0xE0) | (fuHeader & 0x1F);
@@ -285,6 +295,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
   }
 
   private int writeStartCode() {
+    Log.i(TAG," writeStartCode()");
     nalStartCodeArray.setPosition(/* position= */ 0);
     int bytesWritten = nalStartCodeArray.bytesLeft();
     checkNotNull(trackOutput).sampleData(nalStartCodeArray, bytesWritten);
@@ -293,6 +304,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   private static long toSampleUs(
       long startTimeOffsetUs, long rtpTimestamp, long firstReceivedRtpTimestamp) {
+    Log.i(TAG," toSampleUs()");
     return startTimeOffsetUs
         + Util.scaleLargeTimestamp(
             (rtpTimestamp - firstReceivedRtpTimestamp),
@@ -302,6 +314,7 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
 
   @C.BufferFlags
   private static int getBufferFlagsFromNalType(int nalType) {
+    Log.i(TAG," getBufferFlagsFromNalType()");
     return nalType == NAL_UNIT_TYPE_IDR ? C.BUFFER_FLAG_KEY_FRAME : 0;
   }
 }
