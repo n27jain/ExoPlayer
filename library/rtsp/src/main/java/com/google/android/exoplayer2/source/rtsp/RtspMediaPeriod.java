@@ -118,27 +118,37 @@ import android.util.Log;
     this.listener = listener;
 
     handler = Util.createHandlerForCurrentLooper();
-    internalListener = new InternalListener();
-    rtspClient =
-        new RtspClient(
-            /* sessionInfoListener= */ internalListener,
-            /* playbackEventListener= */ internalListener,
-            /* userAgent= */ userAgent,
-            /* uri= */ uri,
-            debugLoggingEnabled);
     rtspLoaderWrappers = new ArrayList<>();
     selectedLoadInfos = new ArrayList<>();
+    if(!RtspMediaSource.stripRtsp) {
+      internalListener = new InternalListener();
+      rtspClient =
+          new RtspClient(
+              /* sessionInfoListener= */ internalListener,
+              /* playbackEventListener= */ internalListener,
+              /* userAgent= */ userAgent,
+              /* uri= */ uri,
+              debugLoggingEnabled);
+
+    } else {
+      internalListener = null;
+      rtspClient = null;
+    }
+
+
 
     pendingSeekPositionUs = C.TIME_UNSET;
   }
 
   /** Releases the {@link RtspMediaPeriod}. */
   public void release() {
-    for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
-      rtspLoaderWrappers.get(i).release();
-    }
     if(!RtspMediaSource.stripRtsp){
+      for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
+        rtspLoaderWrappers.get(i).release();
+      }
       Util.closeQuietly(rtspClient);
+    } else {
+      rtploaderWrapper.release();
     }
     released = true;
   }
@@ -183,6 +193,8 @@ import android.util.Log;
       boolean[] streamResetFlags,
       long positionUs) {
 
+
+    Log.d(TAG,"selectTracks is called");
     // Deselect old tracks.
     // Input array streams contains the streams selected in the previous track selection.
     for (int i = 0; i < selections.length; i++) {
@@ -323,7 +335,7 @@ import android.util.Log;
   }
 
   @ReadDataResult
-  /* package */ int readData(
+    /* package */ int readData(
       int sampleQueueIndex,
       FormatHolder formatHolder,
       DecoderInputBuffer buffer,
@@ -414,10 +426,10 @@ import android.util.Log;
 
   private final class InternalListener
       implements ExtractorOutput,
-          Loader.Callback<RtpDataLoadable>,
-          UpstreamFormatChangedListener,
-          SessionInfoListener,
-          PlaybackEventListener {
+      Loader.Callback<RtpDataLoadable>,
+      UpstreamFormatChangedListener,
+      SessionInfoListener,
+      PlaybackEventListener {
 
     // ExtractorOutput implementation.
 
@@ -428,7 +440,7 @@ import android.util.Log;
       } else {
         return rtploaderWrapper.sampleQueue;
       }
-      
+
     }
 
     @Override
@@ -511,7 +523,11 @@ import android.util.Log;
 
     @Override
     public void onRtspSetupCompleted() {
-      rtspClient.startPlayback(/* offsetMs= */ 0);
+      Log.d(TAG,"onRtspSetupCompleted.Normally RtspClient start requests for playback here with 0 offset");
+      if(!RtspMediaSource.stripRtsp) {
+        rtspClient.startPlayback(/* offsetMs= */ 0);
+      }
+
     }
 
     @Override
@@ -689,6 +705,7 @@ import android.util.Log;
 
     /** Starts loading. */
     public void startLoading() {
+      Log.d(TAG,"startLoading() is called. This will trigger load method of RtspDataLoadable");
       loader.startLoading(
           loadInfo.loadable, /* callback= */ internalListener, /* defaultMinRetryCount= */ 0);
     }
@@ -700,11 +717,13 @@ import android.util.Log;
     @ReadDataResult
     public int read(
         FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
+      Log.d(TAG,"read method is triggered. Who is trying to read sampleQueue?");
       return sampleQueue.read(formatHolder, buffer, readFlags, /* loadingFinished= */ canceled);
     }
 
     /** Cancels loading. */
     public void cancelLoad() {
+      Log.d(TAG,"cancelLoad is called");
       if (!canceled) {
         loadInfo.loadable.cancelLoad();
         canceled = true;
@@ -716,6 +735,7 @@ import android.util.Log;
 
     /** Resets the {@link Loadable} and {@link SampleQueue} to prepare for an RTSP seek. */
     public void seekTo(long positionUs) {
+      Log.e(TAG,"I thought seek is not supported?!");
       if (!canceled) {
         loadInfo.loadable.resetForSeek();
         sampleQueue.reset();
@@ -754,6 +774,8 @@ import android.util.Log;
         RtspMediaTrack mediaTrack, int trackId, RtpDataChannel.Factory rtpDataChannelFactory) {
       this.mediaTrack = mediaTrack;
 
+      Log.d(TAG,"RtpLoadInfo constructor is called");
+
       // This listener runs on the playback thread, posted by the Loader thread.
       RtpDataLoadable.EventListener transportEventListener =
           (transport, rtpDataChannel) -> {
@@ -769,7 +791,7 @@ import android.util.Log;
             }
             maybeSetupTracks();
           };
-
+      //whatever mediatrack it received, it cascades to RtpDataLoadable
       this.loadable =
           new RtpDataLoadable(
               trackId,
@@ -784,6 +806,11 @@ import android.util.Log;
      * ready.
      */
     public boolean isTransportReady() {
+      if(transport == null){
+        Log.d(TAG,"transport is null");
+      } else {
+        Log.d(TAG,"transport is NOT null");
+      }
       return transport != null;
     }
 
@@ -803,3 +830,4 @@ import android.util.Log;
     }
   }
 }
+
