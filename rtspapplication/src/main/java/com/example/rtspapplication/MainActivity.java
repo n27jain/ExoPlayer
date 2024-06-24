@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
 
     MediaItem item = MediaItem.fromUri(Uri.parse(url));
     Log.i(TAG,"START : Create a new MediaSource using RtspMediaSource.Factory()");
-    MediaSource mediaSource = new RtspMediaSource.Factory().createMediaSource(item); // UDPdatsource Directory
+    MediaSource mediaSource = new RtspMediaSource.Factory(true).createMediaSource(item); // UDPdatsource Directory
     Log.i(TAG,"Finished creation of mediaSource");
 
     player.setMediaSource(mediaSource);

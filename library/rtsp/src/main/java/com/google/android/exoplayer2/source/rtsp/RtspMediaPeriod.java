@@ -23,7 +23,6 @@ import static java.lang.Math.min;
 
 import android.net.Uri;
 import android.os.Handler;
-import android.util.Log;
 import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
@@ -58,6 +57,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.checkerframework.checker.nullness.compatqual.NullableType;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import android.util.Log;
 
 /** A {@link MediaPeriod} that loads an RTSP stream. */
 /* package */ final class RtspMediaPeriod implements MediaPeriod {
@@ -71,7 +71,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   /** The maximum times to retry if the underlying data channel failed to bind. */
   private static final int PORT_BINDING_MAX_RETRY_COUNT = 3;
-  String TAG = Constants.TAG + " RtspMediaPeriod";
+
   private final Allocator allocator;
   private final Handler handler;
   private final InternalListener internalListener;
@@ -80,6 +80,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   private final List<RtpLoadInfo> selectedLoadInfos;
   private final Listener listener;
   private final RtpDataChannel.Factory rtpDataChannelFactory;
+  private final static String TAG = "ExoSample"+RtspMediaPeriod.class.getSimpleName();
 
   private @MonotonicNonNull Callback callback;
   private @MonotonicNonNull ImmutableList<TrackGroup> trackGroups;
@@ -94,6 +95,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   private boolean trackSelected;
   private int portBindingRetryCount;
   private boolean isUsingRtpTcp;
+  private RtspLoaderWrapper rtploaderWrapper;
 
   /**
    * Creates an RTSP media period.
@@ -111,42 +113,52 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       Listener listener,
       String userAgent,
       boolean debugLoggingEnabled) {
-    Log.i(TAG,"Constructor ");
     this.allocator = allocator;
     this.rtpDataChannelFactory = rtpDataChannelFactory;
     this.listener = listener;
 
     handler = Util.createHandlerForCurrentLooper();
-    internalListener = new InternalListener();
-    Log.i(TAG,"Creating RtspClient");
-    rtspClient =
-        new RtspClient(
-            /* sessionInfoListener= */ internalListener,
-            /* playbackEventListener= */ internalListener,
-            /* userAgent= */ userAgent,
-            /* uri= */ uri,
-            debugLoggingEnabled);
     rtspLoaderWrappers = new ArrayList<>();
     selectedLoadInfos = new ArrayList<>();
+    if(!RtspMediaSource.stripRtsp) {
+      internalListener = new InternalListener();
+      rtspClient =
+          new RtspClient(
+              /* sessionInfoListener= */ internalListener,
+              /* playbackEventListener= */ internalListener,
+              /* userAgent= */ userAgent,
+              /* uri= */ uri,
+              debugLoggingEnabled);
+
+    } else {
+      internalListener = null;
+      rtspClient = null;
+    }
+
+
 
     pendingSeekPositionUs = C.TIME_UNSET;
   }
 
   /** Releases the {@link RtspMediaPeriod}. */
   public void release() {
-    Log.i(TAG,"release(). Closing rtspClient ");
-    for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
-      rtspLoaderWrappers.get(i).release();
+    if(!RtspMediaSource.stripRtsp){
+      for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
+        rtspLoaderWrappers.get(i).release();
+      }
+      Util.closeQuietly(rtspClient);
+    } else {
+      rtploaderWrapper.release();
     }
-    Util.closeQuietly(rtspClient);
     released = true;
   }
 
   @Override
   public void prepare(Callback callback, long positionUs) {
     this.callback = callback;
-    Log.i(TAG,"prepare(). start the rtspClient() ");
-
+    if(RtspMediaSource.stripRtsp){
+      return;
+    }
     try {
       rtspClient.start();
     } catch (IOException e) {
@@ -180,7 +192,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       @NullableType SampleStream[] streams,
       boolean[] streamResetFlags,
       long positionUs) {
-    Log.i(TAG,"selectTracks(). Deselect old tracks.");
+
+
+    Log.d(TAG,"selectTracks is called");
     // Deselect old tracks.
     // Input array streams contains the streams selected in the previous track selection.
     for (int i = 0; i < selections.length; i++) {
@@ -244,9 +258,24 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   }
 
   @Override
-  public long seekToUs(long positionUs) { //TODO: remove entirely
-    Log.i(TAG," seekToUs()");
-    return 0;
+  public long seekToUs(long positionUs) {
+    if (isSeekPending()) {
+      // TODO(internal b/172331505) Allow seek when a seek is pending.
+      // Does not allow another seek if a seek is pending.
+      return pendingSeekPositionUs;
+    }
+
+    if (seekInsideBufferUs(positionUs)) {
+      return positionUs;
+    }
+
+    lastSeekPositionUs = positionUs;
+    pendingSeekPositionUs = positionUs;
+    rtspClient.seekToUs(positionUs);
+    for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
+      rtspLoaderWrappers.get(i).seekTo(positionUs);
+    }
+    return positionUs;
   }
 
   @Override
@@ -306,7 +335,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   }
 
   @ReadDataResult
-  /* package */ int readData(
+    /* package */ int readData(
       int sampleQueueIndex,
       FormatHolder formatHolder,
       DecoderInputBuffer buffer,
@@ -318,11 +347,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   @Nullable
   private RtpDataLoadable getLoadableByTrackUri(Uri trackUri) {
-    Log.i(TAG, "RtpDataLoadable getLoadableByTrackUri()");
     for (int i = 0; i < rtspLoaderWrappers.size(); i++) {
       if (!rtspLoaderWrappers.get(i).canceled) {
         RtpLoadInfo loadInfo = rtspLoaderWrappers.get(i).loadInfo;
-        Log.i(TAG, "RtpDataLoadable loadInfo "+ loadInfo.toString());
         if (loadInfo.getTrackUri().equals(trackUri)) {
           return loadInfo.loadable;
         }
@@ -399,16 +426,21 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   private final class InternalListener
       implements ExtractorOutput,
-          Loader.Callback<RtpDataLoadable>,
-          UpstreamFormatChangedListener,
-          SessionInfoListener,
-          PlaybackEventListener {
+      Loader.Callback<RtpDataLoadable>,
+      UpstreamFormatChangedListener,
+      SessionInfoListener,
+      PlaybackEventListener {
 
     // ExtractorOutput implementation.
 
     @Override
     public TrackOutput track(int id, int type) {
-      return checkNotNull(rtspLoaderWrappers.get(id)).sampleQueue;
+      if(!RtspMediaSource.stripRtsp){
+        return checkNotNull(rtspLoaderWrappers.get(id)).sampleQueue;
+      } else {
+        return rtploaderWrapper.sampleQueue;
+      }
+
     }
 
     @Override
@@ -491,7 +523,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     @Override
     public void onRtspSetupCompleted() {
-      rtspClient.startPlayback(/* offsetMs= */ 0);
+      Log.d(TAG,"onRtspSetupCompleted.Normally RtspClient start requests for playback here with 0 offset");
+      if(!RtspMediaSource.stripRtsp) {
+        rtspClient.startPlayback(/* offsetMs= */ 0);
+      }
+
     }
 
     @Override
@@ -523,7 +559,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         dataLoadable.setSequenceNumber(trackTiming.sequenceNumber);
 
         if (isSeekPending()) {
-          dataLoadable.seekToUs(startPositionUs, trackTiming.rtpTimestamp); // TODO: we need to keep this function because
+          dataLoadable.seekToUs(startPositionUs, trackTiming.rtpTimestamp);
         }
       }
 
@@ -558,9 +594,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   }
 
   private void retryWithRtpTcp() {
-    //TODO: Should we eliminate and throw error instead?
-    Log.i(TAG,"retryWithRtpTcp(). If the occurs our system may fail. Please verify.");
-
     rtspClient.retryWithRtpTcp();
 
     @Nullable
@@ -656,13 +689,10 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
      */
     public RtspLoaderWrapper(
         RtspMediaTrack mediaTrack, int trackId, RtpDataChannel.Factory rtpDataChannelFactory) {
-      Log.i(TAG," RtspLoaderWrapper constructor");
-
       loadInfo = new RtpLoadInfo(mediaTrack, trackId, rtpDataChannelFactory);
       loader = new Loader("ExoPlayer:RtspMediaPeriod:RtspLoaderWrapper " + trackId);
       sampleQueue = SampleQueue.createWithoutDrm(allocator);
       sampleQueue.setUpstreamFormatChangeListener(internalListener);
-
     }
 
     /**
@@ -675,6 +705,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     /** Starts loading. */
     public void startLoading() {
+      Log.d(TAG,"startLoading() is called. This will trigger load method of RtspDataLoadable");
       loader.startLoading(
           loadInfo.loadable, /* callback= */ internalListener, /* defaultMinRetryCount= */ 0);
     }
@@ -686,11 +717,13 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @ReadDataResult
     public int read(
         FormatHolder formatHolder, DecoderInputBuffer buffer, @ReadFlags int readFlags) {
+      Log.d(TAG,"read method is triggered. Who is trying to read sampleQueue?");
       return sampleQueue.read(formatHolder, buffer, readFlags, /* loadingFinished= */ canceled);
     }
 
     /** Cancels loading. */
     public void cancelLoad() {
+      Log.d(TAG,"cancelLoad is called");
       if (!canceled) {
         loadInfo.loadable.cancelLoad();
         canceled = true;
@@ -702,6 +735,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     /** Resets the {@link Loadable} and {@link SampleQueue} to prepare for an RTSP seek. */
     public void seekTo(long positionUs) {
+      Log.e(TAG,"I thought seek is not supported?!");
       if (!canceled) {
         loadInfo.loadable.resetForSeek();
         sampleQueue.reset();
@@ -720,6 +754,12 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     }
   }
 
+  public void provideMediaDescription(RtspMediaTrack rtspMediaTrack){
+    Log.d(TAG,"provideMediaDescription is called");
+    rtploaderWrapper = new RtspLoaderWrapper(rtspMediaTrack, /* trackId= */ 1, rtpDataChannelFactory);
+    rtploaderWrapper.startLoading();
+  }
+
   /** Groups the info needed for loading one RTSP track in RTP. */
   /* package */ final class RtpLoadInfo {
     /** The {@link RtspMediaTrack}. */
@@ -732,9 +772,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     /** Creates a new instance. */
     public RtpLoadInfo(
         RtspMediaTrack mediaTrack, int trackId, RtpDataChannel.Factory rtpDataChannelFactory) {
-      Log.i(TAG," RtpLoadInfo() Constructor");
-
       this.mediaTrack = mediaTrack;
+
+      Log.d(TAG,"RtpLoadInfo constructor is called");
 
       // This listener runs on the playback thread, posted by the Loader thread.
       RtpDataLoadable.EventListener transportEventListener =
@@ -751,7 +791,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
             }
             maybeSetupTracks();
           };
-
+      //whatever mediatrack it received, it cascades to RtpDataLoadable
       this.loadable =
           new RtpDataLoadable(
               trackId,
@@ -766,6 +806,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
      * ready.
      */
     public boolean isTransportReady() {
+      if(transport == null){
+        Log.d(TAG,"transport is null");
+      } else {
+        Log.d(TAG,"transport is NOT null");
+      }
       return transport != null;
     }
 
@@ -775,17 +820,14 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
      * @throws IllegalStateException When transport for this RTP stream is not set.
      */
     public String getTransport() {
-      Log.i(TAG," getTransport() fir RTP loading");
-
       checkStateNotNull(transport);
       return transport;
     }
 
     /** Gets the {@link Uri} for the loading RTSP track. */
     public Uri getTrackUri() {
-      Log.i(TAG," getTrackUri()");
-
       return loadable.rtspMediaTrack.uri;
     }
   }
 }
+
